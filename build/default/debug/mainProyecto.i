@@ -6,8 +6,8 @@
 ; Autor: Jeferson Noj
 ; Compilador: pic-as (v2.30), MPLABX V5.40
 ;
-; Programa: Aumento de PORTA cada segundo con TMR1 y led intermitente con TMR2
-; Hardware: LEDs en PORTA y LED en PORTB
+; Programa:
+; Hardware:
 ;
 ; Creado: 01 mar, 2022
 ; Última modificación: mar, 2022
@@ -2499,6 +2499,10 @@ reset_tmr1 MACRO TMR1_H, TMR1_L ; Esta es la forma correcta
   CONFIG WRT = OFF ; Flash Program Memory Self Write Enable bits (Write protection off)
 
   BMODO EQU 0
+  UP EQU 1
+  DOWN EQU 2
+  EDITAR EQU 3
+  INICIO EQU 4
 
 PSECT udata_bank0 ; Memoria común
   selector: DS 1
@@ -2509,13 +2513,22 @@ PSECT udata_bank0 ; Memoria común
   meses: DS 1
   temp1: DS 1
   temp2: DS 1
+  decenasS: DS 1
+  unidadesS: DS 1
   decenasM: DS 1
   unidadesM: DS 1
   decenasH: DS 1
   unidadesH: DS 1
+  decenasD: DS 1
+  unidadesD: DS 1
+  decenasMes: DS 1
+  unidadesMes: DS 1
   displayM: DS 2
   displayH: DS 2
+  displayD: DS 2
+  displayMes: DS 2
   estados: DS 1
+  conf: DS 1
 
 PSECT udata_shr ; Memoria compartida
   W_TEMP: DS 1
@@ -2576,7 +2589,6 @@ int_tmr2:
     RETURN
 
 int_portB:
-    BCF ((INTCON) and 07Fh), 0
     BTFSC PORTB, BMODO
     GOTO $+6
     INCF estados
@@ -2584,6 +2596,25 @@ int_portB:
     SUBLW 4
     BTFSC STATUS, 2
     CLRF estados
+    BTFSS PORTB, UP
+    BSF conf, 0
+    BTFSS PORTB, DOWN
+    BCF conf, 0
+    BTFSC PORTB, EDITAR
+    GOTO $+6
+    BTFSC conf, 1
+    GOTO $+3
+    BSF conf, 1
+    GOTO $+2
+    BCF conf, 1
+    BTFSC PORTB, INICIO
+    GOTO $+6
+    BTFSC conf, 2
+    GOTO $+3
+    BSF conf, 2
+    GOTO $+2
+    BCF conf, 2
+    BCF ((INTCON) and 07Fh), 0
     RETURN
 
 PSECT code, delta=2, abs
@@ -2600,16 +2631,16 @@ main:
     CLRF segundos
     CLRF minutos
     CLRF horas
+    CLRF dias
+    CLRF meses
     CLRF estados
     BANKSEL PORTA
 
 ;-------- LOOP RRINCIPAL --------
 loop:
+    MOVF conf, 0
+    MOVWF PORTA
     CALL evaluar_estados
-    ;CALL contador_reloj
-    CALL obtenerDU_M
-    CALL obtenerDU_H
-    ;CALL config_display
     CALL selector_disp
     GOTO loop ; Saltar al loop principal
 
@@ -2625,38 +2656,87 @@ evaluar_estados:
     GOTO S2_timer
     GOTO S3_alarma
     S0_reloj:
+ BTFSC conf, 1
+ GOTO $+5
  CALL contador_reloj
- CALL config_display_reloj
- RETURN
+ CALL obtenerDU_M
+ CALL obtenerDU_H
+     CALL config_display_reloj
+    RETURN
     S1_fecha:
- ;CALL contador_fecha
- RETURN
+ ;CALL obtenerDU_D
+ ;CALL obtenerDU_Mes
+ ;CALL config_display_fecha
+    RETURN
     S2_timer:
-
- RETURN
+ ;BTFSS PORTB, UP
+ ;CALL aumentarS
+ ;BTFSS PORTB, DOWN
+ ;CALL disminuirS
+ ;CALL temporizador
+ ;CALL obtenerDU_S
+ ;CALL obtenerDU_M
+     ;CALL config_display_timer
+    RETURN
     S3_alarma:
 
- RETURN
+    RETURN
 
 contador_reloj:
     MOVF segundos, 0
-    SUBLW 2 ; 60
+    SUBLW 1 ; 60
     BTFSS STATUS, 2
-    GOTO $+15
-    INCF minutos
+    GOTO $+13
     CLRF segundos
+    INCF minutos
     MOVF minutos, 0
-    SUBLW 5 ; 60
+    SUBLW 3 ; 60
     BTFSS STATUS, 2
-    GOTO $+9
-    INCF horas
+    GOTO $+7
     CLRF minutos
+    INCF horas
     MOVF horas, 0
-    SUBLW 5 ; 24
-    BTFSS STATUS, 2
-    GOTO $+3
-    INCF dias
+    SUBLW 4 ; 24
+    BTFSC STATUS, 2
     CLRF horas
+    RETURN
+
+aumentarM:
+    INCF minutos
+    MOVF minutos, 0
+    SUBLW 60 ; 60
+    BTFSC STATUS, 2
+    CLRF minutos
+    RETURN
+
+disminuirM:
+    MOVF minutos, 0
+    ANDLW 0x3F
+    BTFSC STATUS, 2
+    GOTO $+3
+    DECF minutos
+    GOTO $+3
+    MOVLW 59
+    MOVWF minutos
+    RETURN
+
+aumentarH:
+    INCF horas
+    MOVF horas, 0
+    SUBLW 24 ; 60
+    BTFSC STATUS, 2
+    CLRF horas
+    RETURN
+
+disminuirH:
+    MOVF horas, 0
+    ANDLW 0x1F
+    BTFSC STATUS, 2
+    GOTO $+3
+    DECF horas
+    GOTO $+3
+    MOVLW 23
+    MOVWF horas
     RETURN
 
 obtenerDU_M:
@@ -2727,22 +2807,22 @@ selector_disp:
  MOVF displayM, 0
  MOVWF PORTC
  BSF PORTD, 0
- RETURN
+    RETURN
     display1:
  MOVF displayM+1, 0
  MOVWF PORTC
  BSF PORTD, 1
- RETURN
+    RETURN
     display2:
  MOVF displayH, 0
  MOVWF PORTC
  BSF PORTD, 2
- RETURN
+    RETURN
     display3:
  MOVF displayH+1, 0
  MOVWF PORTC
  BSF PORTD, 3
- RETURN
+    RETURN
 
 ;----- SUBRUTINAS DE CONFIGURACIÓN -----
 config_clk:
@@ -2760,19 +2840,19 @@ config_io:
     BANKSEL TRISA
     CLRF TRISA ; PORTA como salida
     BSF TRISB, BMODO
-    BSF TRISB, 1
-    BSF TRISB, 2
-    BSF TRISB, 3
-    BSF TRISB, 4
+    BSF TRISB, UP
+    BSF TRISB, DOWN
+    BSF TRISB, EDITAR
+    BSF TRISB, INICIO
     BCF TRISB, 5
     CLRF TRISC
     CLRF TRISD
     BCF OPTION_REG, 7
     BSF WPUB, BMODO
-    BSF WPUB, 1
-    BSF WPUB, 2
-    BSF WPUB, 3
-    BSF WPUB, 4
+    BSF WPUB, UP
+    BSF WPUB, DOWN
+    BSF WPUB, EDITAR
+    BSF WPUB, INICIO
     BANKSEL PORTA
     CLRF PORTA
     BCF PORTB, 5
@@ -2820,11 +2900,11 @@ config_int:
     BSF ((PIE1) and 07Fh), 0
     BSF ((PIE1) and 07Fh), 1
     BANKSEL IOCB
-    BSF ((IOCB) and 07Fh), 0
-    BSF ((IOCB) and 07Fh), 1
-    BSF ((IOCB) and 07Fh), 2
-    BSF ((IOCB) and 07Fh), 3
-    BSF ((IOCB) and 07Fh), 4
+    BSF IOCB, 0
+    BSF IOCB, 1
+    BSF IOCB, 2
+    BSF IOCB, 3
+    BSF IOCB, 4
     BANKSEL INTCON
     BSF ((INTCON) and 07Fh), 7
     BSF ((INTCON) and 07Fh), 6

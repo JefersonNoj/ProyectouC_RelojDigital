@@ -29,24 +29,38 @@ PROCESSOR 16F887
   CONFIG  BOR4V = BOR40V        ; Brown-out Reset Selection bit (Brown-out Reset set to 4.0V)
   CONFIG  WRT = OFF             ; Flash Program Memory Self Write Enable bits (Write protection off)
 
-  BMODO EQU 0
+  BMODO	    EQU 0
+  UP	    EQU 1
+  DOWN	    EQU 2
+  EDITAR    EQU 3
+  INICIO    EQU 4
 
 PSECT udata_bank0	    ; Memoria común
   selector:	DS 1
   segundos:	DS 1
   minutos:	DS 1
   horas:	DS 1
-  dias:		DS 1
-  meses:	DS 1
+  ;dias:		DS 1
+  ;meses:	DS 1
   temp1:	DS 1
   temp2:	DS 1
+  decenasS:	DS 1
+  unidadesS:	DS 1
   decenasM:	DS 1
   unidadesM:	DS 1
   decenasH:	DS 1
   unidadesH:	DS 1
+  ;decenasD:	DS 1
+  ;unidadesD:	DS 1
+  ;decenasMes:	DS 1
+  ;unidadesMes:	DS 1
   displayM:	DS 2
   displayH:	DS 2
+  ;displayD:	DS 2
+  ;displayMes:	DS 2
   estados:	DS 1
+  conf:		DS 1
+  set_valor:	DS 1
 
 PSECT udata_shr		    ; Memoria compartida
   W_TEMP:	DS 1		
@@ -93,7 +107,8 @@ int_tmr0:
     RETURN
 
 int_tmr1:
-    reset_tmr1 0x85, 0xA3  ; Reiniciamos TMR1 
+    reset_tmr1 0x85, 0xA3  ; Reiniciamos TMR1
+    BTFSS   conf, 0
     INCF    segundos
     RETURN
 
@@ -107,7 +122,6 @@ int_tmr2:
     RETURN
 
 int_portB:
-    BCF	    RBIF
     BTFSC   PORTB, BMODO
     GOTO    $+6
     INCF    estados
@@ -115,6 +129,30 @@ int_portB:
     SUBLW   4
     BTFSC   STATUS, 2
     CLRF    estados
+
+    BTFSC   PORTB, EDITAR
+    GOTO    $+9
+    BSF	    conf, 0
+    INCF    set_valor
+    MOVF    set_valor, 0
+    SUBLW   3
+    BTFSS   STATUS, 2
+    GOTO    $+3
+    CLRF    set_valor
+    BCF	    conf, 0
+
+    BTFSC   PORTB, INICIO   
+    GOTO    $+6
+    BTFSC   conf, 1
+    GOTO    $+3
+    BSF	    conf, 1
+    GOTO    $+2
+    BCF	    conf, 1
+    BTFSS   PORTB, UP
+    BSF	conf, 2
+    BTFSS	PORTB, DOWN
+    BSF	conf, 3
+    BCF	RBIF		; Limpiamos bandera de interrupción
     RETURN
 
 PSECT code, delta=2, abs
@@ -131,16 +169,16 @@ main:
     CLRF    segundos
     CLRF    minutos
     CLRF    horas
+    ;CLRF    dias
+    ;CLRF    meses
     CLRF    estados
     BANKSEL PORTA
 
 ;-------- LOOP RRINCIPAL --------
 loop:
+    MOVF    conf, 0
+    MOVWF   PORTA
     CALL    evaluar_estados
-    ;CALL    contador_reloj
-    CALL    obtenerDU_M
-    CALL    obtenerDU_H
-    ;CALL    config_display
     CALL    selector_disp
     GOTO    loop		; Saltar al loop principal
 
@@ -156,36 +194,98 @@ evaluar_estados:
     GOTO    S2_timer
     GOTO    S3_alarma
     S0_reloj:
-	CALL	contador_reloj
-	CALL    config_display_reloj
+	CALL    contador_reloj
+	CALL    obtenerDU_M
+	CALL    obtenerDU_H
+    	CALL    config_display_reloj
+	BTFSS	conf, 0
 	RETURN
-    S1_fecha:
+	BTFSS	set_valor, 0
+	GOTO	setH
+	setM:	
+	    BTFSC	conf, 2
+	    CALL	aumentarM
+	    BTFSC	conf, 3
+	    CALL	disminuirM
+	RETURN
+	setH:	
+	    BTFSC	conf, 2
+	    CALL	aumentarH
+	    BTFSC	conf, 3
+	    CALL	disminuirH
+	RETURN
 
-	RETURN
+    S1_fecha:
+	;CALL    obtenerDU_D
+	;CALL    obtenerDU_Mes
+	;CALL    config_display_fecha
+    RETURN
     S2_timer:
 
-	RETURN
+    RETURN
     S3_alarma:
-
-	RETURN
+	
+    RETURN
 
 contador_reloj:
     MOVF    segundos, 0
     SUBLW   60		    ; 60
     BTFSS   STATUS, 2
     GOTO    $+13
-    INCF    minutos
     CLRF    segundos
+    INCF    minutos
     MOVF    minutos, 0
     SUBLW   60		    ; 60
     BTFSS   STATUS, 2
     GOTO    $+7
-    INCF    horas
     CLRF    minutos
+    INCF    horas
     MOVF    horas, 0
     SUBLW   24		    ; 24
     BTFSC   STATUS, 2
     CLRF    horas
+    RETURN
+
+aumentarM:
+    INCF    minutos
+    MOVF    minutos, 0
+    SUBLW   60		    ; 60
+    BTFSC   STATUS, 2
+    CLRF    minutos
+    BCF	    conf, 2
+    RETURN
+
+disminuirM:
+    MOVF    minutos, 0
+    ANDLW   0x3F
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    minutos
+    GOTO    $+3
+    MOVLW   59
+    MOVWF   minutos
+    BCF	    conf, 3
+    RETURN
+
+aumentarH:
+    INCF    horas
+    MOVF    horas, 0
+    SUBLW   24		    ; 60
+    BTFSC   STATUS, 2
+    CLRF    horas
+    BCF	    conf, 2
+    RETURN
+
+disminuirH:
+    MOVF    horas, 0
+    ANDLW   0x1F
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    horas
+    GOTO    $+3
+    MOVLW   23
+    MOVWF   horas
+    BCF	    conf, 3
     RETURN
 
 obtenerDU_M:
@@ -256,22 +356,22 @@ selector_disp:
 	MOVF	displayM, 0
 	MOVWF	PORTC
 	BSF	PORTD, 0
-	RETURN
+    RETURN
     display1:
 	MOVF	displayM+1, 0
 	MOVWF	PORTC
 	BSF	PORTD, 1
-	RETURN
+    RETURN
     display2:
 	MOVF	displayH, 0
 	MOVWF	PORTC
 	BSF	PORTD, 2
-	RETURN
+    RETURN
     display3:
 	MOVF	displayH+1, 0
 	MOVWF	PORTC
 	BSF	PORTD, 3
-	RETURN
+    RETURN
 
 ;----- SUBRUTINAS DE CONFIGURACIÓN -----
 config_clk:
@@ -289,19 +389,19 @@ config_io:
     BANKSEL TRISA
     CLRF    TRISA	    ; PORTA como salida
     BSF	    TRISB, BMODO
-    BSF	    TRISB, 1
-    BSF	    TRISB, 2
-    BSF	    TRISB, 3
-    BSF	    TRISB, 4
+    BSF	    TRISB, UP
+    BSF	    TRISB, DOWN
+    BSF	    TRISB, EDITAR
+    BSF	    TRISB, INICIO
     BCF	    TRISB, 5
     CLRF    TRISC
     CLRF    TRISD
     BCF	    OPTION_REG, 7
     BSF	    WPUB, BMODO
-    BSF	    WPUB, 1
-    BSF	    WPUB, 2
-    BSF	    WPUB, 3
-    BSF	    WPUB, 4
+    BSF	    WPUB, UP
+    BSF	    WPUB, DOWN
+    BSF	    WPUB, EDITAR
+    BSF	    WPUB, INICIO
     BANKSEL PORTA
     CLRF    PORTA
     BCF	    PORTB, 5
@@ -349,11 +449,11 @@ config_int:
     BSF	    TMR1IE
     BSF	    TMR2IE
     BANKSEL IOCB
-    BSF	    IOCB0
-    BSF	    IOCB1
-    BSF	    IOCB2
-    BSF	    IOCB3
-    BSF	    IOCB4
+    BSF	    IOCB, 0
+    BSF	    IOCB, 1
+    BSF	    IOCB, 2
+    BSF	    IOCB, 3
+    BSF	    IOCB, 4
     BANKSEL INTCON  
     BSF	    GIE
     BSF	    PEIE
@@ -365,10 +465,10 @@ config_int:
     BCF	    RBIF
     RETURN
 
-ORG 200h		    ; Establecer posición para la tabla
+ORG 400h		    ; Establecer posición para la tabla
 tabla:
     CLRF    PCLATH	    ; Limpiar registro PCLATH
-    BSF	    PCLATH, 1	    ; Posicionar PC en 0x02xxh
+    BSF	    PCLATH, 2	    ; Posicionar PC en 0x04xxh
     ANDLW   0x0F	    ; AND entre W y literal 0x0F
     ADDWF   PCL		    ; ADD entre W y PCL 
     RETLW   00111111B	    ; 0	en 7 seg
