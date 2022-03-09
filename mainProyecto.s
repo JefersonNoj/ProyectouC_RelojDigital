@@ -56,11 +56,15 @@ PSECT udata_bank0	    ; Memoria común
   ;unidadesMes:	DS 1
   displayM:	DS 2
   displayH:	DS 2
-  ;displayD:	DS 2
-  ;displayMes:	DS 2
   estados:	DS 1
   conf:		DS 1
   set_valor:	DS 1
+  segundosT:	DS 1
+  minutosT:	DS 1
+  decenasMT:	DS 1
+  unidadesMT:	DS 1
+  decenasST:	DS 1
+  unidadesST:	DS 1
 
 PSECT udata_shr		    ; Memoria compartida
   W_TEMP:	DS 1		
@@ -108,8 +112,10 @@ int_tmr0:
 
 int_tmr1:
     reset_tmr1 0x85, 0xA3  ; Reiniciamos TMR1
-    BTFSS   conf, 0
+    ;BTFSS   conf, 0
     INCF    segundos
+    BTFSC   conf, 1
+    DECF    segundosT
     RETURN
 
 int_tmr2:
@@ -148,6 +154,7 @@ int_portB:
     BSF	    conf, 1
     GOTO    $+2
     BCF	    conf, 1
+
     BTFSS   PORTB, UP
     BSF	conf, 2
     BTFSS	PORTB, DOWN
@@ -179,6 +186,9 @@ loop:
     MOVF    conf, 0
     MOVWF   PORTA
     CALL    evaluar_estados
+    CALL    contador_reloj
+    BTFSC   conf, 1
+    CALL    temporizador
     CALL    selector_disp
     GOTO    loop		; Saltar al loop principal
 
@@ -194,12 +204,11 @@ evaluar_estados:
     GOTO    S2_timer
     GOTO    S3_alarma
     S0_reloj:
-	CALL    contador_reloj
 	CALL    obtenerDU_M
 	CALL    obtenerDU_H
     	CALL    config_display_reloj
 	BTFSS	conf, 0
-	RETURN
+	GOTO	salirR
 	BTFSS	set_valor, 0
 	GOTO	setH
 	setM:	
@@ -214,15 +223,38 @@ evaluar_estados:
 	    BTFSC	conf, 3
 	    CALL	disminuirH
 	RETURN
+	salirR:
+	RETURN
 
     S1_fecha:
 	;CALL    obtenerDU_D
 	;CALL    obtenerDU_Mes
 	;CALL    config_display_fecha
     RETURN
-    S2_timer:
 
-    RETURN
+    S2_timer:
+	CALL    obtenerDU_ST
+	CALL    obtenerDU_MT
+    	CALL    config_display_timer
+	BTFSS	conf, 0
+	GOTO	salirT
+	BTFSS	set_valor, 0
+	GOTO	setMT
+	setST:	
+	    BTFSC	conf, 2
+	    CALL	aumentarST
+	    BTFSC	conf, 3
+	    CALL	disminuirST
+	RETURN
+	setMT:	
+	    BTFSC	conf, 2
+	    CALL	aumentarMT
+	    BTFSC	conf, 3
+	    CALL	disminuirMT
+	RETURN
+	salirT:
+	RETURN
+
     S3_alarma:
 	
     RETURN
@@ -245,6 +277,97 @@ contador_reloj:
     BTFSC   STATUS, 2
     CLRF    horas
     RETURN
+
+temporizador:
+    MOVF    segundosT, 0
+    ANDLW   0x3F
+    BTFSS   STATUS, 2
+    GOTO    $+9
+    MOVLW   59		    ;60
+    MOVWF   segundosT
+    MOVF    minutosT, 0
+    ANDLW   0x7F
+    BTFSC   STATUS, 2
+    BSF	    conf, 7
+    DECF    minutosT
+    GOTO    $+2
+    BCF	    conf, 7
+    BTFSS   conf, 7
+    GOTO    $+4
+    CLRF    minutosT
+    CLRF    segundosT
+    BCF	    conf, 1
+    RETURN
+
+selector_disp:
+    CLRF    PORTD
+    CLRF    PCLATH	    ; Limpiar registro PCLATH
+    BSF	    PCLATH, 0	    ; Posicionar PC en 0x01xxh
+    MOVF    selector, 0
+    ANDLW   0x03	    ; AND entre W y literal 0x04
+    ADDWF   PCL		    ; ADD entre W y PCL
+    GOTO    display0
+    GOTO    display1
+    GOTO    display2
+    GOTO    display3
+    display0:
+	MOVF	displayM, 0
+	MOVWF	PORTC
+	BSF	PORTD, 0
+    RETURN
+    display1:
+	MOVF	displayM+1, 0
+	MOVWF	PORTC
+	BSF	PORTD, 1
+    RETURN
+    display2:
+	MOVF	displayH, 0
+	MOVWF	PORTC
+	BSF	PORTD, 2
+    RETURN
+    display3:
+	MOVF	displayH+1, 0
+	MOVWF	PORTC
+	BSF	PORTD, 3
+    RETURN
+
+obtenerDU_M:
+    CLRF    decenasM		; Limpiar registro de la decenas
+    MOVF    minutos, 0		; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_M		; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasM		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_M:
+	MOVF    temp2, 0
+	MOVWF   unidadesM
+	RETURN
+
+obtenerDU_H:
+    CLRF    decenasH		; Limpiar registro de la decenas
+    MOVF    horas, 0		; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_H		; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasH		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_H:
+	MOVF    temp2, 0
+	MOVWF   unidadesH
+	RETURN
 
 aumentarM:
     INCF    minutos
@@ -288,44 +411,6 @@ disminuirH:
     BCF	    conf, 3
     RETURN
 
-obtenerDU_M:
-    CLRF    decenasM		; Limpiar registro de la decenas
-    MOVF    minutos, 0		; Guardar valor de registro dec_temp1 en dec_temp2
-    MOVWF   temp1
-    MOVF    temp1, 0
-    MOVWF   temp2
-    MOVLW   10			; Mover literal 10 a W
-    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
-    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
-    GOTO    obtenerU_M		; Saltar a la instrucción indicada si ocurrió overflow en el rango
-    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
-    MOVWF   temp2
-    INCF    decenasM		; Incrementear el registro de las decenas   
-    GOTO    $-7			; Saltar a la séptima instrucción anterior 
-    obtenerU_M:
-	MOVF    temp2, 0
-	MOVWF   unidadesM
-	RETURN
-
-obtenerDU_H:
-    CLRF    decenasH		; Limpiar registro de la decenas
-    MOVF    horas, 0		; Guardar valor de registro dec_temp1 en dec_temp2
-    MOVWF   temp1
-    MOVF    temp1, 0
-    MOVWF   temp2
-    MOVLW   10			; Mover literal 10 a W
-    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
-    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
-    GOTO    obtenerU_H		; Saltar a la instrucción indicada si ocurrió overflow en el rango
-    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
-    MOVWF   temp2
-    INCF    decenasH		; Incrementear el registro de las decenas   
-    GOTO    $-7			; Saltar a la séptima instrucción anterior 
-    obtenerU_H:
-	MOVF    temp2, 0
-	MOVWF   unidadesH
-	RETURN
-
 config_display_reloj:
     MOVF    unidadesM, 0
     CALL    tabla
@@ -341,36 +426,99 @@ config_display_reloj:
     MOVWF   displayH+1
     RETURN
 
-selector_disp:
-    CLRF    PORTD
-    CLRF    PCLATH	    ; Limpiar registro PCLATH
-    BSF	    PCLATH, 0	    ; Posicionar PC en 0x01xxh
-    MOVF    selector, 0
-    ANDLW   0x03	    ; AND entre W y literal 0x04
-    ADDWF   PCL		    ; ADD entre W y PCL
-    GOTO    display0
-    GOTO    display1
-    GOTO    display2
-    GOTO    display3
-    display0:
-	MOVF	displayM, 0
-	MOVWF	PORTC
-	BSF	PORTD, 0
+obtenerDU_ST:
+    CLRF    decenasST		; Limpiar registro de la decenas
+    MOVF    segundosT, 0	; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_ST		; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasST		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_ST:
+	MOVF    temp2, 0
+	MOVWF   unidadesST
+	RETURN
+
+obtenerDU_MT:
+    CLRF    decenasMT		; Limpiar registro de la decenas
+    MOVF    minutosT, 0		; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_MT		; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasMT		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_MT:
+	MOVF    temp2, 0
+	MOVWF   unidadesMT
+	RETURN
+
+aumentarST:
+    INCF    segundosT
+    MOVF    segundosT, 0
+    SUBLW   60		    ; 60
+    BTFSC   STATUS, 2
+    CLRF    segundosT
+    BCF	    conf, 2
     RETURN
-    display1:
-	MOVF	displayM+1, 0
-	MOVWF	PORTC
-	BSF	PORTD, 1
+
+disminuirST:
+    MOVF    segundosT, 0
+    ANDLW   0x3F
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    segundosT
+    GOTO    $+3
+    MOVLW   59
+    MOVWF   segundosT
+    BCF	    conf, 3
     RETURN
-    display2:
-	MOVF	displayH, 0
-	MOVWF	PORTC
-	BSF	PORTD, 2
+
+aumentarMT:
+    INCF    minutosT
+    MOVF    minutosT, 0
+    SUBLW   100		    ; 60
+    BTFSC   STATUS, 2
+    CLRF    minutosT
+    BCF	    conf, 2
     RETURN
-    display3:
-	MOVF	displayH+1, 0
-	MOVWF	PORTC
-	BSF	PORTD, 3
+
+disminuirMT:
+    MOVF    minutosT, 0
+    ANDLW   0x7F
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    minutosT
+    GOTO    $+3
+    MOVLW   99
+    MOVWF   minutosT
+    BCF	    conf, 3
+    RETURN
+
+config_display_timer:
+    MOVF    unidadesST, 0
+    CALL    tabla
+    MOVWF   displayM
+    MOVF    decenasST, 0
+    CALL    tabla
+    MOVWF   displayM+1
+    MOVF    unidadesMT, 0
+    CALL    tabla
+    MOVWF   displayH
+    MOVF    decenasMT, 0
+    CALL    tabla
+    MOVWF   displayH+1
     RETURN
 
 ;----- SUBRUTINAS DE CONFIGURACIÓN -----
@@ -465,10 +613,11 @@ config_int:
     BCF	    RBIF
     RETURN
 
-ORG 400h		    ; Establecer posición para la tabla
+ORG 600h		    ; Establecer posición para la tabla
 tabla:
     CLRF    PCLATH	    ; Limpiar registro PCLATH
-    BSF	    PCLATH, 2	    ; Posicionar PC en 0x04xxh
+    BSF	    PCLATH, 1	    ; Posicionar PC en 0x04xxh
+    BSF	    PCLATH, 2
     ANDLW   0x0F	    ; AND entre W y literal 0x0F
     ADDWF   PCL		    ; ADD entre W y PCL 
     RETLW   00111111B	    ; 0	en 7 seg
