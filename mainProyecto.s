@@ -40,8 +40,8 @@ PSECT udata_bank0	    ; Memoria común
   segundos:	DS 1
   minutos:	DS 1
   horas:	DS 1
-  ;dias:		DS 1
-  ;meses:	DS 1
+  dias:		DS 1
+  meses:	DS 1
   temp1:	DS 1
   temp2:	DS 1
   decenasS:	DS 1
@@ -50,10 +50,10 @@ PSECT udata_bank0	    ; Memoria común
   unidadesM:	DS 1
   decenasH:	DS 1
   unidadesH:	DS 1
-  ;decenasD:	DS 1
-  ;unidadesD:	DS 1
-  ;decenasMes:	DS 1
-  ;unidadesMes:	DS 1
+  decenasD:	DS 1
+  unidadesD:	DS 1
+  decenasMes:	DS 1
+  unidadesMes:	DS 1
   displayM:	DS 2
   displayH:	DS 2
   estados:	DS 1
@@ -71,6 +71,7 @@ PSECT udata_bank0	    ; Memoria común
   unidadesMA:	DS 1
   decenasHA:	DS 1
   unidadesHA:	DS 1
+  dismD:	DS 1
 
 PSECT udata_shr		    ; Memoria compartida
   W_TEMP:	DS 1		
@@ -197,6 +198,8 @@ loop:
     MOVWF   PORTA
     CALL    evaluar_estados
     CALL    contador_reloj
+    BTFSS   conf, 0
+    CALL    contador_fecha
     BTFSC   conf, 1
     CALL    temporizador
     CALL    alarma
@@ -238,9 +241,27 @@ evaluar_estados:
 	RETURN
 
     S1_fecha:
-	;CALL    obtenerDU_D
-	;CALL    obtenerDU_Mes
-	;CALL    config_display_fecha
+	CALL    obtenerDU_Mes
+	CALL    obtenerDU_D
+	CALL    config_display_fecha
+	BTFSS	conf, 0
+	GOTO	salirF
+	BTFSS	set_valor, 0
+	GOTO	setD
+	setMes:	
+	    BTFSC	conf, 2
+	    CALL	aumentarMes
+	    BTFSC	conf, 3
+	    CALL	disminuirMes
+	RETURN
+	setD:	
+	    BTFSC	conf, 2
+	    CALL	aumentarD
+	    BTFSC	conf, 3
+	    CALL	disminuirD
+	RETURN
+	salirF:
+	RETURN
     RETURN
 
     S2_timer:
@@ -293,19 +314,38 @@ contador_reloj:
     MOVF    segundos, 0
     SUBLW   60		    ; 60
     BTFSS   STATUS, 2
-    GOTO    $+13
+    GOTO    $+3
     CLRF    segundos
     INCF    minutos
     MOVF    minutos, 0
     SUBLW   60		    ; 60
     BTFSS   STATUS, 2
-    GOTO    $+7
+    GOTO    $+3
     CLRF    minutos
     INCF    horas
     MOVF    horas, 0
     SUBLW   24		    ; 24
-    BTFSC   STATUS, 2
+    BTFSS   STATUS, 2
+    GOTO    $+3
     CLRF    horas
+    INCF    dias
+    RETURN
+
+contador_fecha:
+    MOVF    meses, 0
+    CALL    tabla_meses
+    SUBWF   dias, 0	    ; PENDIENTE
+    BTFSS   STATUS, 2
+    GOTO    $+4
+    MOVLW   1
+    MOVWF   dias
+    INCF    meses
+    MOVF    meses, 0
+    SUBLW   13		    ; 24
+    BTFSS   STATUS, 2
+    GOTO    $+3
+    MOVLW   1
+    MOVWF   meses
     RETURN
 
 temporizador:
@@ -423,7 +463,7 @@ aumentarM:
 
 disminuirM:
     MOVF    minutos, 0
-    ANDLW   0x3F
+    XORLW   0x00
     BTFSC   STATUS, 2
     GOTO    $+3
     DECF    minutos
@@ -444,7 +484,7 @@ aumentarH:
 
 disminuirH:
     MOVF    horas, 0
-    ANDLW   0x1F
+    XORLW   0x00
     BTFSC   STATUS, 2
     GOTO    $+3
     DECF    horas
@@ -518,7 +558,7 @@ aumentarST:
 
 disminuirST:
     MOVF    segundosT, 0
-    ANDLW   0x3F
+    XORLW   0x00
     BTFSC   STATUS, 2
     GOTO    $+3
     DECF    segundosT
@@ -539,7 +579,7 @@ aumentarMT:
 
 disminuirMT:
     MOVF    minutosT, 0
-    ANDLW   0x7F
+    XORLW   0x00
     BTFSC   STATUS, 2
     GOTO    $+3
     DECF    minutosT
@@ -613,7 +653,7 @@ aumentarMA:
 
 disminuirMA:
     MOVF    minutosA, 0
-    ANDLW   0x3F
+    XORLW   0x00
     BTFSC   STATUS, 2
     GOTO    $+3
     DECF    minutosA
@@ -634,7 +674,7 @@ aumentarHA:
 
 disminuirHA:
     MOVF    horasA, 0
-    ANDLW   0x1F
+    XORLW   0x00
     BTFSC   STATUS, 2
     GOTO    $+3
     DECF    horasA
@@ -655,6 +695,110 @@ config_display_alarma:
     CALL    tabla
     MOVWF   displayH
     MOVF    decenasHA, 0
+    CALL    tabla
+    MOVWF   displayH+1
+    RETURN
+
+obtenerDU_Mes:
+    CLRF    decenasMes		; Limpiar registro de la decenas
+    MOVF    meses, 0		; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_Mes	; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasMes		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_Mes:
+	MOVF	temp2, 0
+	MOVWF   unidadesMes
+	RETURN
+
+obtenerDU_D:
+    CLRF    decenasD		; Limpiar registro de la decenas
+    MOVF    dias, 0		; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_D		; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasD		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_D:
+	MOVF    temp2, 0
+	MOVWF   unidadesD
+	RETURN
+
+aumentarMes:
+    INCF    meses
+    MOVF    meses, 0
+    SUBLW   13		    ; 12
+    BTFSS   STATUS, 2
+    GOTO    $+3
+    MOVLW   1
+    MOVWF   meses
+    BCF	    conf, 2
+    RETURN
+
+disminuirMes:
+    MOVF    meses, 0
+    SUBLW   0x01
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    meses
+    GOTO    $+3
+    MOVLW   12
+    MOVWF   meses
+    BCF	    conf, 3
+    RETURN
+
+aumentarD:
+    INCF    dias
+    MOVF    meses, 0
+    CALL    tabla_meses
+    SUBWF   dias, 0	    ; PENDIENTE
+    BTFSS   STATUS, 2
+    GOTO    $+3
+    MOVLW   1
+    MOVWF   dias
+    BCF	    conf, 2
+    RETURN
+
+disminuirD:
+    MOVF    dias, 0
+    SUBLW   0x01	    ; PENDIENTE
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    dias
+    GOTO    $+7
+    MOVF    meses, 0
+    CALL    tabla_meses
+    MOVWF   dismD
+    MOVLW   1
+    SUBWF   dismD, 0
+    MOVWF   dias
+    BCF	    conf, 3
+    RETURN
+
+config_display_fecha:
+    MOVF    unidadesMes, 0
+    CALL    tabla
+    MOVWF   displayM
+    MOVF    decenasMes, 0
+    CALL    tabla
+    MOVWF   displayM+1
+    MOVF    unidadesD, 0
+    CALL    tabla
+    MOVWF   displayH
+    MOVF    decenasD, 0
     CALL    tabla
     MOVWF   displayH+1
     RETURN
@@ -756,7 +900,7 @@ config_int:
 ORG 600h		    ; Establecer posición para la tabla
 tabla:
     CLRF    PCLATH	    ; Limpiar registro PCLATH
-    BSF	    PCLATH, 1	    ; Posicionar PC en 0x04xxh
+    BSF	    PCLATH, 1	    ; Posicionar PC en 0x06xxh
     BSF	    PCLATH, 2
     ANDLW   0x0F	    ; AND entre W y literal 0x0F
     ADDWF   PCL		    ; ADD entre W y PCL 
@@ -776,5 +920,25 @@ tabla:
     RETLW   01011110B	    ; 13 en 7 seg
     RETLW   01111001B	    ; 14 en 7 seg
     RETLW   01110001B	    ; 15 en 7 seg
+
+tabla_meses:
+    CLRF    PCLATH	    ; Limpiar registro PCLATH
+    BSF	    PCLATH, 1	    ; Posicionar PC en 0x06xxh
+    BSF	    PCLATH, 2
+    ANDLW   0x0F	    ; AND entre W y literal 0x0F
+    ADDWF   PCL		    ; ADD entre W y PCL 
+    RETLW   31	    ; 0	en 7 seg
+    RETLW   32	    ; 1 en 7 seg
+    RETLW   29	    ; 2 en 7 seg
+    RETLW   32	    ; 3 en 7 seg
+    RETLW   31	    ; 4 en 7 seg
+    RETLW   32	    ; 5 en 7 seg
+    RETLW   31	    ; 6 en 7 seg
+    RETLW   32	    ; 7 en 7 seg
+    RETLW   32	    ; 8 en 7 seg
+    RETLW   31	    ; 9 en 7 seg
+    RETLW   32	    ; 10 en 7 seg
+    RETLW   31	    ; 11 en 7 seg
+    RETLW   32	    ; 12 en 7 seg
 
 END
