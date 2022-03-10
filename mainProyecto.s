@@ -65,6 +65,12 @@ PSECT udata_bank0	    ; Memoria común
   unidadesMT:	DS 1
   decenasST:	DS 1
   unidadesST:	DS 1
+  minutosA:	DS 1
+  horasA:	DS 1
+  decenasMA:	DS 1
+  unidadesMA:	DS 1
+  decenasHA:	DS 1
+  unidadesHA:	DS 1
 
 PSECT udata_shr		    ; Memoria compartida
   W_TEMP:	DS 1		
@@ -120,11 +126,11 @@ int_tmr1:
 
 int_tmr2:
     BCF	    TMR2IF  
-    BTFSC   PORTB, 5
+    BTFSC   conf, 5
     GOTO    $+3
-    BSF	    PORTB, 5
+    BSF	    conf, 5
     GOTO    $+2
-    BCF	    PORTB, 5
+    BCF	    conf, 5
     RETURN
 
 int_portB:
@@ -176,6 +182,10 @@ main:
     CLRF    segundos
     CLRF    minutos
     CLRF    horas
+    CLRF    segundosT
+    CLRF    minutosT
+    CLRF    minutosA
+    CLRF    horasA
     ;CLRF    dias
     ;CLRF    meses
     CLRF    estados
@@ -189,6 +199,7 @@ loop:
     CALL    contador_reloj
     BTFSC   conf, 1
     CALL    temporizador
+    CALL    alarma
     CALL    selector_disp
     GOTO    loop		; Saltar al loop principal
 
@@ -256,8 +267,27 @@ evaluar_estados:
 	RETURN
 
     S3_alarma:
-	
-    RETURN
+	CALL    obtenerDU_MA
+	CALL    obtenerDU_HA
+    	CALL    config_display_alarma
+	BTFSS	conf, 0
+	GOTO	salirA
+	BTFSS	set_valor, 0
+	GOTO	setHA
+	setMA:	
+	    BTFSC	conf, 2
+	    CALL	aumentarMA
+	    BTFSC	conf, 3
+	    CALL	disminuirMA
+	RETURN
+	setHA:	
+	    BTFSC	conf, 2
+	    CALL	aumentarHA
+	    BTFSC	conf, 3
+	    CALL	disminuirHA
+	RETURN
+	salirA:
+	RETURN
 
 contador_reloj:
     MOVF    segundos, 0
@@ -297,6 +327,19 @@ temporizador:
     CLRF    minutosT
     CLRF    segundosT
     BCF	    conf, 1
+    RETURN
+
+alarma:
+    MOVF    minutos, 0
+    SUBWF   minutosA, 0
+    BTFSS   STATUS, 2
+    GOTO    $+6
+    MOVF    horas, 0
+    SUBWF   horasA, 0
+    BTFSC   STATUS, 2
+    BSF	    PORTE, 0
+    GOTO    $+2
+    BCF	    PORTE, 0
     RETURN
 
 selector_disp:
@@ -521,6 +564,101 @@ config_display_timer:
     MOVWF   displayH+1
     RETURN
 
+obtenerDU_MA:
+    CLRF    decenasMA		; Limpiar registro de la decenas
+    MOVF    minutosA, 0		; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_MA		; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasMA		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_MA:
+	MOVF    temp2, 0
+	MOVWF   unidadesMA
+	RETURN
+
+obtenerDU_HA:
+    CLRF    decenasHA		; Limpiar registro de la decenas
+    MOVF    horasA, 0		; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_HA		; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasHA		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_HA:
+	MOVF    temp2, 0
+	MOVWF   unidadesHA
+	RETURN
+
+aumentarMA:
+    INCF    minutosA
+    MOVF    minutosA, 0
+    SUBLW   60		    ; 60
+    BTFSC   STATUS, 2
+    CLRF    minutosA
+    BCF	    conf, 2
+    RETURN
+
+disminuirMA:
+    MOVF    minutosA, 0
+    ANDLW   0x3F
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    minutosA
+    GOTO    $+3
+    MOVLW   59
+    MOVWF   minutosA
+    BCF	    conf, 3
+    RETURN
+
+aumentarHA:
+    INCF    horasA
+    MOVF    horasA, 0
+    SUBLW   24		    ; 60
+    BTFSC   STATUS, 2
+    CLRF    horasA
+    BCF	    conf, 2
+    RETURN
+
+disminuirHA:
+    MOVF    horasA, 0
+    ANDLW   0x1F
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    horasA
+    GOTO    $+3
+    MOVLW   23
+    MOVWF   horasA
+    BCF	    conf, 3
+    RETURN
+
+config_display_alarma:
+    MOVF    unidadesMA, 0
+    CALL    tabla
+    MOVWF   displayM
+    MOVF    decenasMA, 0
+    CALL    tabla
+    MOVWF   displayM+1
+    MOVF    unidadesHA, 0
+    CALL    tabla
+    MOVWF   displayH
+    MOVF    decenasHA, 0
+    CALL    tabla
+    MOVWF   displayH+1
+    RETURN
+
 ;----- SUBRUTINAS DE CONFIGURACIÓN -----
 config_clk:
     BANKSEL OSCCON
@@ -544,6 +682,7 @@ config_io:
     BCF	    TRISB, 5
     CLRF    TRISC
     CLRF    TRISD
+    CLRF    TRISE
     BCF	    OPTION_REG, 7
     BSF	    WPUB, BMODO
     BSF	    WPUB, UP
@@ -555,6 +694,7 @@ config_io:
     BCF	    PORTB, 5
     CLRF    PORTC
     CLRF    PORTD
+    CLRF    PORTE
     RETURN
 
 config_tmr0:
