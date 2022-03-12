@@ -128,10 +128,12 @@ int_tmr1:
 int_tmr2:
     BCF	    TMR2IF  
     BTFSC   conf, 5
-    GOTO    $+3
+    GOTO    $+4
     BSF	    conf, 5
-    GOTO    $+2
+    BSF	    PORTE, 2
+    GOTO    $+3
     BCF	    conf, 5
+    BCF	    PORTE, 2
     RETURN
 
 int_portB:
@@ -163,10 +165,10 @@ int_portB:
     BCF	    conf, 1
 
     BTFSS   PORTB, UP
-    BSF	conf, 2
-    BTFSS	PORTB, DOWN
-    BSF	conf, 3
-    BCF	RBIF		; Limpiamos bandera de interrupción
+    BSF	    conf, 2
+    BTFSS   PORTB, DOWN
+    BSF	    conf, 3
+    BCF	    RBIF		; Limpiamos bandera de interrupción
     RETURN
 
 PSECT code, delta=2, abs
@@ -180,22 +182,14 @@ main:
     CALL    config_tmr1
     CALL    config_tmr2
     CALL    config_int
-    CLRF    segundos
-    CLRF    minutos
-    CLRF    horas
-    CLRF    segundosT
-    CLRF    minutosT
-    CLRF    minutosA
-    CLRF    horasA
-    ;CLRF    dias
-    ;CLRF    meses
-    CLRF    estados
+    CALL    limpiar_variables
     BANKSEL PORTA
 
 ;-------- LOOP RRINCIPAL --------
 loop:
     MOVF    conf, 0
-    MOVWF   PORTA
+    MOVWF   PORTC
+    CALL    selector_disp
     CALL    evaluar_estados
     CALL    contador_reloj
     BTFSS   conf, 0
@@ -203,7 +197,6 @@ loop:
     BTFSC   conf, 1
     CALL    temporizador
     CALL    alarma
-    CALL    selector_disp
     GOTO    loop		; Saltar al loop principal
 
 ;----- SUBRUTINAS DE FUNCIÓN -----
@@ -334,7 +327,7 @@ contador_reloj:
 contador_fecha:
     MOVF    meses, 0
     CALL    tabla_meses
-    SUBWF   dias, 0	    ; PENDIENTE
+    SUBWF   dias, 0	    ; 
     BTFSS   STATUS, 2
     GOTO    $+4
     MOVLW   1
@@ -352,15 +345,16 @@ temporizador:
     MOVF    segundosT, 0
     ANDLW   0x3F
     BTFSS   STATUS, 2
-    GOTO    $+9
+    GOTO    $+10
     MOVLW   59		    ;60
     MOVWF   segundosT
     MOVF    minutosT, 0
     ANDLW   0x7F
-    BTFSC   STATUS, 2
+    BTFSS   STATUS, 2
+    GOTO    $+3
     BSF	    conf, 7
+    GOTO    $+3
     DECF    minutosT
-    GOTO    $+2
     BCF	    conf, 7
     BTFSS   conf, 7
     GOTO    $+4
@@ -395,22 +389,54 @@ selector_disp:
     GOTO    display3
     display0:
 	MOVF	displayM, 0
-	MOVWF	PORTC
+	MOVWF	PORTA
+	BTFSS	conf, 0
+	GOTO	$+7
+	BTFSS	set_valor, 0
+	GOTO	$+5
+	BTFSC	conf, 5
+	GOTO	$+3
+	BCF	PORTD, 0
+	GOTO	$+2
 	BSF	PORTD, 0
     RETURN
     display1:
 	MOVF	displayM+1, 0
-	MOVWF	PORTC
+	MOVWF	PORTA
+	BTFSS	conf, 0
+	GOTO	$+7
+	BTFSS	set_valor, 0
+	GOTO	$+5
+	BTFSC	conf, 5
+	GOTO	$+3
+	BCF	PORTD, 0
+	GOTO	$+2
 	BSF	PORTD, 1
     RETURN
     display2:
 	MOVF	displayH, 0
-	MOVWF	PORTC
+	MOVWF	PORTA
+	BTFSS	conf, 0
+	GOTO	$+7
+	BTFSS	set_valor, 1
+	GOTO	$+5
+	BTFSC	conf, 5
+	GOTO	$+3
+	BCF	PORTD, 0
+	GOTO	$+2
 	BSF	PORTD, 2
     RETURN
     display3:
 	MOVF	displayH+1, 0
-	MOVWF	PORTC
+	MOVWF	PORTA
+	BTFSS	conf, 0
+	GOTO	$+7
+	BTFSS	set_valor, 1
+	GOTO	$+5
+	BTFSC	conf, 5
+	GOTO	$+3
+	BCF	PORTD, 0
+	GOTO	$+2
 	BSF	PORTD, 3
     RETURN
 
@@ -823,7 +849,6 @@ config_io:
     BSF	    TRISB, DOWN
     BSF	    TRISB, EDITAR
     BSF	    TRISB, INICIO
-    BCF	    TRISB, 5
     CLRF    TRISC
     CLRF    TRISD
     CLRF    TRISE
@@ -835,7 +860,6 @@ config_io:
     BSF	    WPUB, INICIO
     BANKSEL PORTA
     CLRF    PORTA
-    BCF	    PORTB, 5
     CLRF    PORTC
     CLRF    PORTD
     CLRF    PORTE
@@ -845,7 +869,7 @@ config_tmr0:
     BANKSEL OPTION_REG
     BCF	    T0CS
     BCF	    PSA
-    BCF	    PS2		    ; Prescaler/010/1:8
+    BSF	    PS2		    ; Prescaler/110/1:128
     BSF	    PS1
     BCF	    PS0
     reset_tmr0
@@ -895,6 +919,47 @@ config_int:
     BCF	    TMR1IF
     BCF	    TMR2IF
     BCF	    RBIF
+    RETURN
+
+limpiar_variables:
+    CLRF    selector
+    CLRF    temp1
+    CLRF    temp2
+    CLRF    segundos
+    CLRF    minutos
+    CLRF    horas
+    CLRF    decenasS
+    CLRF    unidadesS
+    CLRF    decenasM
+    CLRF    unidadesM
+    CLRF    decenasH
+    CLRF    unidadesH
+    CLRF    dias
+    BSF	    dias, 0
+    CLRF    meses
+    BSF	    meses, 0
+    CLRF    decenasD
+    CLRF    unidadesD
+    CLRF    decenasMes
+    CLRF    unidadesMes
+    CLRF    displayM
+    CLRF    displayH
+    CLRF    estados
+    CLRF    conf
+    CLRF    set_valor
+    CLRF    dismD
+    CLRF    segundosT
+    CLRF    minutosT
+    CLRF    decenasMT
+    CLRF    unidadesMT
+    CLRF    decenasST
+    CLRF    unidadesST
+    CLRF    minutosA
+    CLRF    horasA
+    CLRF    decenasMA
+    CLRF    unidadesMA
+    CLRF    decenasHA
+    CLRF    unidadesHA
     RETURN
 
 ORG 600h		    ; Establecer posición para la tabla
