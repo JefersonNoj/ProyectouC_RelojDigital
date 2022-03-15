@@ -2466,8 +2466,8 @@ PROCESSOR 16F887
 
 reset_tmr0 MACRO
     BANKSEL TMR0 ; Cambiar de banco
-    MOVLW 251 ; 1 ms = 4(1/500Khz)(256-N)(256)
-       ; N = 256 - (0.001s*500Khz)/(4*256) = 240
+    MOVLW 251 ; 5 ms = 4(1/500Khz)(256-N)(128)
+       ; N = 256 - (0.005s*500Khz)/(4*128) = 251
     MOVWF TMR0 ; Configurar tiempo de retardo
     BCF ((INTCON) and 07Fh), 2 ; Limpiar bandera de interrupción
     ENDM
@@ -2541,6 +2541,10 @@ PSECT udata_bank0 ; Memoria común
   decenasHA: DS 1
   unidadesHA: DS 1
   dismD: DS 1
+  alertaT: DS 1
+  alertaA: DS 1
+  off_temp: DS 1
+  off_alarma:
 
 PSECT udata_shr ; Memoria compartida
   W_TEMP: DS 1
@@ -2590,8 +2594,10 @@ int_tmr1:
     reset_tmr1 0x85, 0xA3 ; Reiniciamos TMR1
     ;BTFSS conf, 0
     INCF segundos
-    BTFSC conf, 1
+    BTFSC alertaT, 1
     DECF segundosT
+    BTFSC PORTE, 1
+    INCF off_temp
     RETURN
 
 int_tmr2:
@@ -2625,13 +2631,37 @@ int_portB:
     CLRF set_valor
     BCF conf, 0
 
+    MOVF estados, 0
+    SUBLW 2
+    BTFSS STATUS, 2
+    GOTO $+10
     BTFSC PORTB, INICIO
-    GOTO $+6
-    BTFSC conf, 1
+    GOTO $+8
+    BTFSC alertaT, 0
+    GOTO $+4
+    BSF alertaT, 1
+    BSF alertaT, 0
     GOTO $+3
-    BSF conf, 1
-    GOTO $+2
-    BCF conf, 1
+    BCF alertaT, 1
+    BCF alertaT, 0
+
+    MOVF estados, 0
+    SUBLW 3
+    BTFSS STATUS, 2
+    GOTO $+14
+    BTFSC PORTB, INICIO
+    GOTO $+12
+    BTFSS PORTE, 0
+    GOTO $+3
+    BCF alertaA, 1
+    GOTO $+8
+    BTFSC alertaA, 0
+    GOTO $+4
+    BSF alertaA, 1
+    BSF alertaA, 0
+    GOTO $+3
+    BCF alertaA, 0
+    BCF alertaA, 1
 
     BTFSS PORTB, UP
     BSF conf, 2
@@ -2656,15 +2686,14 @@ main:
 
 ;-------- LOOP RRINCIPAL --------
 loop:
-    MOVF conf, 0
+    MOVF alertaA, 0
     MOVWF PORTC
     CALL selector_disp
     CALL evaluar_estados
     CALL contador_reloj
-    BTFSS conf, 0
+    BTFSS conf, 0 ; Saltar contador fecha si se está configurando
     CALL contador_fecha
-    BTFSC conf, 1
-    CALL temporizador
+    BTFSC alertaA, 0
     CALL alarma
     GOTO loop ; Saltar al loop principal
 
@@ -2727,9 +2756,12 @@ evaluar_estados:
     RETURN
 
     S2_timer:
+ BTFSC alertaT, 1
+ CALL temporizador
  CALL obtenerDU_ST
  CALL obtenerDU_MT
      CALL config_display_timer
+ CALL off_temp_indicador
  BTFSS conf, 0
  GOTO salirT
  BTFSS set_valor, 0
@@ -2753,6 +2785,7 @@ evaluar_estados:
  CALL obtenerDU_MA
  CALL obtenerDU_HA
      CALL config_display_alarma
+ CALL off_alarma_indicador
  BTFSS conf, 0
  GOTO salirA
  BTFSS set_valor, 0
@@ -2812,36 +2845,53 @@ contador_fecha:
 
 temporizador:
     MOVF segundosT, 0
-    ANDLW 0x3F
+    SUBLW 0xFF
     BTFSS STATUS, 2
-    GOTO $+11
+    GOTO $+9
     MOVLW 59 ;60
     MOVWF segundosT
     MOVF minutosT, 0
     ANDLW 0x7F
     BTFSS STATUS, 2
-    GOTO $+3
-    BSF conf, 7
-    GOTO $+3
+    GOTO $+2
+    GOTO temp_indicador
     DECF minutosT
-    BCF conf, 7
-    BTFSS conf, 7
-    GOTO $+4
-    CLRF minutosT
-    CLRF segundosT
-    BCF conf, 1
+    RETURN
+    temp_indicador:
+ BSF PORTE, 1
+ BCF alertaT, 1
+ CLRF segundosT
+ RETURN
+
+off_temp_indicador:
+    BTFSC alertaT, 0
+    GOTO $+3
+    BCF PORTE, 1
+    CLRF off_temp
+    MOVF off_temp, 0
+    SUBLW 60
+    BTFSS STATUS, 2
+    GOTO $+3
+    BCF PORTE, 1
+    CLRF off_temp
     RETURN
 
 alarma:
     MOVF minutos, 0
     SUBWF minutosA, 0
     BTFSS STATUS, 2
-    GOTO $+6
+    GOTO $+7
     MOVF horas, 0
     SUBWF horasA, 0
-    BTFSC STATUS, 2
+    BTFSS STATUS, 2
+    GOTO $+3
     BSF PORTE, 0
     GOTO $+2
+    BCF PORTE, 0
+    RETURN
+
+off_alarma_indicador:
+    BTFSS alertaA, 1
     BCF PORTE, 0
     RETURN
 
@@ -3318,7 +3368,6 @@ config_io:
     BSF TRISB, DOWN
     BSF TRISB, EDITAR
     BSF TRISB, INICIO
-    ;BCF TRISB, 5
     CLRF TRISC
     CLRF TRISD
     CLRF TRISE
@@ -3330,7 +3379,6 @@ config_io:
     BSF WPUB, INICIO
     BANKSEL PORTA
     CLRF PORTA
-    ;BCF PORTB, 5
     CLRF PORTC
     CLRF PORTD
     CLRF PORTE
@@ -3340,7 +3388,7 @@ config_tmr0:
     BANKSEL OPTION_REG
     BCF ((OPTION_REG) and 07Fh), 5
     BCF ((OPTION_REG) and 07Fh), 3
-    BSF ((OPTION_REG) and 07Fh), 2 ; Prescaler/010/1:8
+    BSF ((OPTION_REG) and 07Fh), 2 ; Prescaler/110/1:128
     BSF ((OPTION_REG) and 07Fh), 1
     BCF ((OPTION_REG) and 07Fh), 0
     reset_tmr0

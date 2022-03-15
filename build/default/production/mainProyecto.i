@@ -2541,6 +2541,10 @@ PSECT udata_bank0 ; Memoria común
   decenasHA: DS 1
   unidadesHA: DS 1
   dismD: DS 1
+  alertaT: DS 1
+  alertaA: DS 1
+  off_temp: DS 1
+  off_alarma: DS 1
 
 PSECT udata_shr ; Memoria compartida
   W_TEMP: DS 1
@@ -2590,8 +2594,12 @@ int_tmr1:
     reset_tmr1 0x85, 0xA3 ; Reiniciamos TMR1
     ;BTFSS conf, 0
     INCF segundos
-    BTFSC conf, 1
+    BTFSC alertaT, 1
     DECF segundosT
+    BTFSC PORTE, 1
+    INCF off_temp
+    BTFSC alertaA, 2
+    INCF off_alarma
     RETURN
 
 int_tmr2:
@@ -2625,13 +2633,38 @@ int_portB:
     CLRF set_valor
     BCF conf, 0
 
-    BTFSC PORTB, INICIO
-    GOTO $+6
-    BTFSC conf, 1
+    BTFSS PORTE, 0
     GOTO $+3
-    BSF conf, 1
-    GOTO $+2
-    BCF conf, 1
+    BTFSS PORTB, INICIO
+    BCF PORTE, 0
+
+    MOVF estados, 0
+    SUBLW 2
+    BTFSS STATUS, 2
+    GOTO $+10
+    BTFSC PORTB, INICIO
+    GOTO $+8
+    BTFSC alertaT, 0
+    GOTO $+4
+    BSF alertaT, 1
+    BSF alertaT, 0
+    GOTO $+3
+    BCF alertaT, 1
+    BCF alertaT, 0
+
+    MOVF estados, 0
+    SUBLW 3
+    BTFSS STATUS, 2
+    GOTO $+10
+    BTFSC PORTB, INICIO
+    GOTO $+8
+    BTFSC alertaA, 0
+    GOTO $+4
+    BSF alertaA, 0
+    BSF alertaA, 1
+    GOTO $+3
+    BCF alertaA, 0
+    BCF alertaA, 1
 
     BTFSS PORTB, UP
     BSF conf, 2
@@ -2656,16 +2689,16 @@ main:
 
 ;-------- LOOP RRINCIPAL --------
 loop:
-    MOVF conf, 0
+    MOVF alertaA, 0
     MOVWF PORTC
     CALL selector_disp
     CALL evaluar_estados
     CALL contador_reloj
-    BTFSS conf, 0
+    BTFSS conf, 0 ; Saltar contador fecha si se está configurando
     CALL contador_fecha
-    BTFSC conf, 1
-    CALL temporizador
+    BTFSC alertaA, 1
     CALL alarma
+    CALL off_alarma_indicador
     GOTO loop ; Saltar al loop principal
 
 ;----- SUBRUTINAS DE FUNCIÓN -----
@@ -2727,9 +2760,12 @@ evaluar_estados:
     RETURN
 
     S2_timer:
+ BTFSC alertaT, 1
+ CALL temporizador
  CALL obtenerDU_ST
  CALL obtenerDU_MT
      CALL config_display_timer
+ CALL off_temp_indicador
  BTFSS conf, 0
  GOTO salirT
  BTFSS set_valor, 0
@@ -2812,37 +2848,60 @@ contador_fecha:
 
 temporizador:
     MOVF segundosT, 0
-    ANDLW 0x3F
+    SUBLW 0xFF
     BTFSS STATUS, 2
-    GOTO $+10
+    GOTO $+9
     MOVLW 59 ;60
     MOVWF segundosT
     MOVF minutosT, 0
     ANDLW 0x7F
     BTFSS STATUS, 2
-    GOTO $+3
-    BSF conf, 7
-    GOTO $+3
+    GOTO $+2
+    GOTO temp_indicador
     DECF minutosT
-    BCF conf, 7
-    BTFSS conf, 7
-    GOTO $+4
-    CLRF minutosT
-    CLRF segundosT
-    BCF conf, 1
+    RETURN
+    temp_indicador:
+ BSF PORTE, 1
+ BCF alertaT, 1
+ CLRF segundosT
+ RETURN
+
+off_temp_indicador:
+    BTFSC alertaT, 0
+    GOTO $+3
+    BCF PORTE, 1
+    CLRF off_temp
+    MOVF off_temp, 0
+    SUBLW 60
+    BTFSS STATUS, 2
+    GOTO $+3
+    BCF PORTE, 1
+    CLRF off_temp
     RETURN
 
 alarma:
     MOVF minutos, 0
     SUBWF minutosA, 0
     BTFSS STATUS, 2
-    GOTO $+6
+    GOTO $+8
     MOVF horas, 0
     SUBWF horasA, 0
-    BTFSC STATUS, 2
+    BTFSS STATUS, 2
+    GOTO $+4
     BSF PORTE, 0
-    GOTO $+2
+    BCF alertaA, 1
+    BSF alertaA, 2
+    RETURN
+
+off_alarma_indicador:
+    MOVF off_alarma, 0
+    SUBLW 60
+    BTFSS STATUS, 2
+    GOTO $+5
     BCF PORTE, 0
+    BCF alertaA, 2
+    CLRF off_alarma
+    BSF alertaA, 1
     RETURN
 
 selector_disp:
@@ -3429,6 +3488,10 @@ limpiar_variables:
     CLRF unidadesMA
     CLRF decenasHA
     CLRF unidadesHA
+    CLRF alertaT
+    CLRF alertaA
+    CLRF off_temp
+    CLRF off_alarma
     RETURN
 
 ORG 600h ; Establecer posición para la tabla
