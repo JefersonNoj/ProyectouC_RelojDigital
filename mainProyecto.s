@@ -71,6 +71,12 @@ PSECT udata_bank0	    ; Memoria común
   unidadesMA:	DS 1
   decenasHA:	DS 1
   unidadesHA:	DS 1
+  segundosC:	DS 1
+  minutosC:	DS 1
+  decenasMC:	DS 1
+  unidadesMC:	DS 1
+  decenasSC:	DS 1
+  unidadesSC:	DS 1
   dismD:	DS 1
   alertaT:	DS 1
   alertaA:	DS 1
@@ -131,6 +137,8 @@ int_tmr1:
     INCF    off_temp
     BTFSC   alertaA, 2
     INCF    off_alarma
+    BTFSC   conf, 6
+    INCF    segundosC
     RETURN
 
 int_tmr2:
@@ -149,7 +157,7 @@ int_portB:
     GOTO    $+6
     INCF    estados
     MOVF    estados, 0
-    SUBLW   4
+    SUBLW   5
     BTFSC   STATUS, 2
     CLRF    estados
 
@@ -197,6 +205,18 @@ int_portB:
     BCF	    alertaA, 0
     BCF	    alertaA, 1
 
+    MOVF    estados, 0
+    SUBLW   4
+    BTFSS   STATUS, 2
+    GOTO    $+8
+    BTFSC   PORTB, INICIO   
+    GOTO    $+6
+    BTFSC   conf, 6
+    GOTO    $+3
+    BSF	    conf, 6	   	    
+    GOTO    $+2
+    BCF	    conf, 6
+
     BTFSS   PORTB, UP
     BSF	    conf, 2
     BTFSS   PORTB, DOWN
@@ -230,6 +250,8 @@ loop:
     BTFSC   alertaA, 1
     CALL    alarma
     CALL    off_alarma_indicador
+    BTFSC   conf, 6
+    CALL    cronometro
     GOTO    loop		; Saltar al loop principal
 
 ;----- SUBRUTINAS DE FUNCIÓN -----
@@ -237,12 +259,13 @@ evaluar_estados:
     CLRF    PCLATH	    ; Limpiar registro PCLATH
     BSF	    PCLATH, 0	    ; Posicionar PC en 0x01xxh
     MOVF    estados, 0
-    ANDLW   0x03	    ; AND entre W y literal 0x04
+    ANDLW   0x07	    ; AND entre W y literal 0x04
     ADDWF   PCL		    ; ADD entre W y PCL
     GOTO    S0_reloj
     GOTO    S1_fecha
     GOTO    S2_timer
     GOTO    S3_alarma
+    GOTO    S4_cronometro
     S0_reloj:
 	CALL    obtenerDU_M
 	CALL    obtenerDU_H
@@ -339,6 +362,12 @@ evaluar_estados:
 	salirA:
 	RETURN
 
+    S4_cronometro:
+	CALL    obtenerDU_SC
+	CALL    obtenerDU_MC
+    	CALL    config_display_cron
+	RETURN
+
 contador_reloj:
     MOVF    segundos, 0
     SUBLW   60		    ; 60
@@ -433,6 +462,21 @@ off_alarma_indicador:
     BCF	    alertaA, 2
     CLRF    off_alarma
     BSF	    alertaA, 1
+    RETURN
+
+cronometro:
+    MOVF    segundosC, 0
+    SUBLW   60		    ; 60
+    BTFSS   STATUS, 2
+    GOTO    $+3
+    CLRF    segundosC
+    INCF    minutosC
+    MOVF    minutosC, 0
+    SUBLW   100		    ; 60
+    BTFSS   STATUS, 2
+    GOTO    $+3
+    CLRF    minutosC
+    BCF	    conf, 6
     RETURN
 
 selector_disp:
@@ -888,6 +932,101 @@ config_display_fecha:
     MOVWF   displayH+1
     RETURN
 
+obtenerDU_SC:
+    CLRF    decenasSC		; Limpiar registro de la decenas
+    MOVF    segundosC, 0	; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_SC		; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasSC		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_SC:
+	MOVF    temp2, 0
+	MOVWF   unidadesSC
+	RETURN
+
+obtenerDU_MC:
+    CLRF    decenasMC		; Limpiar registro de la decenas
+    MOVF    minutosC, 0		; Guardar valor de registro dec_temp1 en dec_temp2
+    MOVWF   temp1
+    MOVF    temp1, 0
+    MOVWF   temp2
+    MOVLW   10			; Mover literal 10 a W
+    SUBWF   temp1, 1		; Restar 10 al registro dec_temp1 y guardar en este mismo registro
+    BTFSS   STATUS, 0		; Evaluar bit de CARRY del registro STATUS
+    GOTO    obtenerU_MC		; Saltar a la instrucción indicada si ocurrió overflow en el rango
+    MOVF    temp1, 0		; Guardar valor de registro dec_temp1 en dec_temp2 
+    MOVWF   temp2
+    INCF    decenasMC		; Incrementear el registro de las decenas   
+    GOTO    $-7			; Saltar a la séptima instrucción anterior 
+    obtenerU_MC:
+	MOVF    temp2, 0
+	MOVWF   unidadesMC
+	RETURN
+
+aumentarSC:
+    INCF    segundosC
+    MOVF    segundosC, 0
+    SUBLW   60		    ; 60
+    BTFSC   STATUS, 2
+    CLRF    segundosC
+    BCF	    conf, 2
+    RETURN
+
+disminuirSC:
+    MOVF    segundosC, 0
+    XORLW   0x00
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    segundosC
+    GOTO    $+3
+    MOVLW   59
+    MOVWF   segundosC
+    BCF	    conf, 3
+    RETURN
+
+aumentarMC:
+    INCF    minutosC
+    MOVF    minutosC, 0
+    SUBLW   100		    ; 60
+    BTFSC   STATUS, 2
+    CLRF    minutosC
+    BCF	    conf, 2
+    RETURN
+
+disminuirMC:
+    MOVF    minutosC, 0
+    XORLW   0x00
+    BTFSC   STATUS, 2
+    GOTO    $+3
+    DECF    minutosC
+    GOTO    $+3
+    MOVLW   99
+    MOVWF   minutosC
+    BCF	    conf, 3
+    RETURN
+
+config_display_cron:
+    MOVF    unidadesSC, 0
+    CALL    tabla
+    MOVWF   displayM
+    MOVF    decenasSC, 0
+    CALL    tabla
+    MOVWF   displayM+1
+    MOVF    unidadesMC, 0
+    CALL    tabla
+    MOVWF   displayH
+    MOVF    decenasMC, 0
+    CALL    tabla
+    MOVWF   displayH+1
+    RETURN
+
 ;----- SUBRUTINAS DE CONFIGURACIÓN -----
 config_clk:
     BANKSEL OSCCON
@@ -1019,6 +1158,12 @@ limpiar_variables:
     CLRF    unidadesMA
     CLRF    decenasHA
     CLRF    unidadesHA
+    CLRF    segundosC
+    CLRF    minutosC
+    CLRF    decenasMC
+    CLRF    unidadesMC
+    CLRF    decenasSC
+    CLRF    unidadesSC
     CLRF    alertaT
     CLRF    alertaA
     CLRF    off_temp
