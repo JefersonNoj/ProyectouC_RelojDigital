@@ -5,7 +5,7 @@ Linker command line:
 -W-3 --edf=C:\Program Files\Microchip\xc8\v2.35\pic\dat\en_msgs.txt -cs \
   -h+dist/default/production\Proyecto1_PuC.X.production.sym \
   --cmf=dist/default/production\Proyecto1_PuC.X.production.cmf -z -Q16F887 \
-  -oC:\Users\usuario\AppData\Local\Temp\xcAsjn8.4 -ver=XC8 PIC(R) Assembler \
+  -oC:\Users\usuario\AppData\Local\Temp\xcAsgok.4 -ver=XC8 PIC(R) Assembler \
   -Mdist/default/production/Proyecto1_PuC.X.production.map -E1 --acfsm=1493 \
   -ACODE=00h-07FFhx4 -ASTRCODE=00h-01FFFh -ASTRING=00h-0FFhx32 \
   -ACONST=00h-0FFhx32 -AENTRY=00h-0FFhx32 -ACOMMON=070h-07Fh \
@@ -27,7 +27,7 @@ Machine type is 16F887
                 Name                               Link     Load   Length Selector   Space Scale
 build/default/production/mainProyecto.o
                 config                             2007     2007        2        0       4
-                intVect                               0        0       79        0       0
+                intVect                               0        0       7F        0       0
                 resVect                               0        0        3        0       0
                 code                                  0        0      627        0       0
                 udata_bank0                          20       20       30       20       1
@@ -37,7 +37,7 @@ build/default/production/macros_config.o
 
 TOTAL           Name                               Link     Load   Length     Space
         CLASS   CODE           
-                intVect                               0        0       79         0
+                intVect                               0        0       7F         0
                 resVect                               0        0        3         0
                 code                                  0        0      627         0
 
