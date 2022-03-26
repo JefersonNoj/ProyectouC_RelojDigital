@@ -2452,7 +2452,7 @@ ENDM
 
 reset_tmr0 MACRO
     BANKSEL TMR0 ; Cambiar de banco
-    MOVLW 251 ; 5 ms = 4(1/500Khz)(256-N)(128)
+    MOVLW 250 ; 5 ms = 4(1/500Khz)(256-N)(128)
        ; N = 256 - (0.005s*500Khz)/(4*128) = 251
     MOVWF TMR0 ; Configurar tiempo de retardo
     BCF ((INTCON) and 07Fh), 2 ; Limpiar bandera de interrupción

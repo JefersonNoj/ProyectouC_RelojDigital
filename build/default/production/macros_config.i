@@ -2461,8 +2461,8 @@ reset_tmr0 MACRO
 reset_tmr1 MACRO TMR1_H, TMR1_L ; Esta es la forma correcta
     BANKSEL TMR1H
     MOVLW TMR1_H ; Literal a guardar en TMR1H
-    MOVWF TMR1H ; Guardamos literal en TMR1H
+    MOVWF TMR1H ; Guardar literal en TMR1H
     MOVLW TMR1_L ; Literal a guardar en TMR1L
-    MOVWF TMR1L ; Guardamos literal en TMR1L
-    BCF ((PIR1) and 07Fh), 0 ; Limpiamos bandera de int. TMR1
+    MOVWF TMR1L ; Guardar literal en TMR1L
+    BCF ((PIR1) and 07Fh), 0 ; Limpiar bandera de int. TMR1
     ENDM

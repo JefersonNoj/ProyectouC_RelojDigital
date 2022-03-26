@@ -2466,7 +2466,7 @@ PROCESSOR 16F887
 
 reset_tmr0 MACRO
     BANKSEL TMR0 ; Cambiar de banco
-    MOVLW 251 ; 5 ms = 4(1/500Khz)(256-N)(128)
+    MOVLW 250 ; 5 ms = 4(1/500Khz)(256-N)(128)
        ; N = 256 - (0.005s*500Khz)/(4*128) = 251
     MOVWF TMR0 ; Configurar tiempo de retardo
     BCF ((INTCON) and 07Fh), 2 ; Limpiar bandera de interrupción
@@ -2642,9 +2642,11 @@ int_portB:
     BCF conf, 0
 
     BTFSS PORTE, 0
+    GOTO $+5
+    BTFSC PORTB, INICIO
     GOTO $+3
-    BTFSS PORTB, INICIO
     BCF PORTE, 0
+    BCF alertaA, 3
 
     MOVF estados, 0
     SUBLW 2
@@ -2677,7 +2679,7 @@ int_portB:
     MOVF estados, 0
     SUBLW 4
     BTFSS STATUS, 2
-    GOTO $+8
+    GOTO $+12
     BTFSC PORTB, INICIO
     GOTO $+6
     BTFSC conf, 6
@@ -2685,6 +2687,10 @@ int_portB:
     BSF conf, 6
     GOTO $+2
     BCF conf, 6
+    BTFSC PORTB, UP
+    GOTO $+3
+    CLRF segundosC
+    CLRF minutosC
 
     BTFSS PORTB, UP
     BSF conf, 2
@@ -2709,8 +2715,8 @@ main:
 
 ;-------- LOOP RRINCIPAL --------
 loop:
-    MOVF alertaA, 0
-    MOVWF PORTC
+    ;MOVF alertaA, 0
+    ;MOVWF PORTC
     CALL selector_disp
     CALL evaluar_estados
     CALL contador_reloj
@@ -2736,6 +2742,10 @@ evaluar_estados:
     GOTO S3_alarma
     GOTO S4_cronometro
     S0_reloj:
+ CLRF PORTC
+ BSF PORTC, 3
+ BTFSC alertaA, 0
+ BSF PORTC, 2
  CALL obtenerDU_M
  CALL obtenerDU_H
      CALL config_display_reloj
@@ -2759,6 +2769,10 @@ evaluar_estados:
  RETURN
 
     S1_fecha:
+ CLRF PORTC
+ BSF PORTC, 4
+ BTFSC alertaA, 0
+ BSF PORTC, 2
  CALL obtenerDU_Mes
  CALL obtenerDU_D
  CALL config_display_fecha
@@ -2783,6 +2797,10 @@ evaluar_estados:
     RETURN
 
     S2_timer:
+ CLRF PORTC
+ BSF PORTC, 5
+ BTFSC alertaA, 0
+ BSF PORTC, 2
  BTFSC alertaT, 1
  CALL temporizador
  CALL obtenerDU_ST
@@ -2809,6 +2827,10 @@ evaluar_estados:
  RETURN
 
     S3_alarma:
+ CLRF PORTC
+ BSF PORTC, 6
+ BTFSC alertaA, 0
+ BSF PORTC, 2
  CALL obtenerDU_MA
  CALL obtenerDU_HA
      CALL config_display_alarma
@@ -2832,6 +2854,10 @@ evaluar_estados:
  RETURN
 
     S4_cronometro:
+ CLRF PORTC
+ BSF PORTC, 7
+ BTFSC alertaA, 0
+ BSF PORTC, 2
  CALL obtenerDU_SC
  CALL obtenerDU_MC
      CALL config_display_cron
@@ -2912,25 +2938,34 @@ alarma:
     MOVF minutos, 0
     SUBWF minutosA, 0
     BTFSS STATUS, 2
-    GOTO $+8
+    GOTO $+9
     MOVF horas, 0
     SUBWF horasA, 0
     BTFSS STATUS, 2
-    GOTO $+4
+    GOTO $+5
     BSF PORTE, 0
     BCF alertaA, 1
     BSF alertaA, 2
+    BSF alertaA, 3
     RETURN
 
 off_alarma_indicador:
+    BTFSS alertaA, 3
+    GOTO $+6
+    BTFSC conf, 5
+    GOTO $+3
+    BCF PORTE, 0
+    GOTO $+2
+    BSF PORTE, 0
     MOVF off_alarma, 0
     SUBLW 60
     BTFSS STATUS, 2
-    GOTO $+5
+    GOTO $+6
     BCF PORTE, 0
     BCF alertaA, 2
     CLRF off_alarma
     BSF alertaA, 1
+    BCF alertaA, 3
     RETURN
 
 cronometro:
@@ -2941,10 +2976,10 @@ cronometro:
     CLRF segundosC
     INCF minutosC
     MOVF minutosC, 0
-    SUBLW 60 ; 60
+    SUBLW 100 ; 60
     BTFSS STATUS, 2
     GOTO $+3
-    CLRF minutos
+    CLRF minutosC
     BCF conf, 6
     RETURN
 
@@ -2981,7 +3016,7 @@ selector_disp:
  GOTO $+5
  BTFSC conf, 5
  GOTO $+3
- BCF PORTD, 0
+ BCF PORTD, 1
  GOTO $+2
  BSF PORTD, 1
     RETURN
@@ -2994,7 +3029,7 @@ selector_disp:
  GOTO $+5
  BTFSC conf, 5
  GOTO $+3
- BCF PORTD, 0
+ BCF PORTD, 2
  GOTO $+2
  BSF PORTD, 2
     RETURN
@@ -3007,7 +3042,7 @@ selector_disp:
  GOTO $+5
  BTFSC conf, 5
  GOTO $+3
- BCF PORTD, 0
+ BCF PORTD, 3
  GOTO $+2
  BSF PORTD, 3
     RETURN
@@ -3476,7 +3511,7 @@ disminuirMC:
     GOTO $+3
     DECF minutosC
     GOTO $+3
-    MOVLW 59
+    MOVLW 99
     MOVWF minutosC
     BCF conf, 3
     RETURN
@@ -3537,8 +3572,8 @@ config_tmr0:
     BCF ((OPTION_REG) and 07Fh), 5
     BCF ((OPTION_REG) and 07Fh), 3
     BSF ((OPTION_REG) and 07Fh), 2 ; Prescaler/110/1:128
-    BSF ((OPTION_REG) and 07Fh), 1
-    BCF ((OPTION_REG) and 07Fh), 0
+    BCF ((OPTION_REG) and 07Fh), 1
+    BSF ((OPTION_REG) and 07Fh), 0
     reset_tmr0
     RETURN
 

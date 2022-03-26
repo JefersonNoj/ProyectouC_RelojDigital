@@ -10,13 +10,13 @@
  Intel Hex-file ranges:
   0h - 5h		(dist/default/production\Proyecto1_PuC.X.production.hex)
   8h - FDh		(dist/default/production\Proyecto1_PuC.X.production.hex)
-  200h - 89Bh		(dist/default/production\Proyecto1_PuC.X.production.hex)
+  200h - 857h		(dist/default/production\Proyecto1_PuC.X.production.hex)
   C00h - C4Dh		(dist/default/production\Proyecto1_PuC.X.production.hex)
   400Eh - 4011h		(dist/default/production\Proyecto1_PuC.X.production.hex)
  Unused ranges:
   6h - 7h
   FEh - 1FFh
-  89Ch - BFFh
+  858h - BFFh
   C4Eh - 400Dh
 
 ### Hex Memory Map ###
@@ -144,11 +144,7 @@
 00000820 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000830 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000840 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
-00000850 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
-00000860 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
-00000870 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
-00000880 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
-00000890 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 -- -- -- --
+00000850 | H1 H1 H1 H1 H1 H1 H1 H1 -- -- -- -- -- -- -- --
 ----------------------------------------------------------
 00000C00 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000C10 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1

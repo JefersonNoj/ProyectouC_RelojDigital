@@ -9,14 +9,14 @@
 ### Memory Usage ###
  Intel Hex-file ranges:
   0h - 5h		(dist/default/debug\Proyecto1_PuC.X.debug.hex)
-  8h - F1h		(dist/default/debug\Proyecto1_PuC.X.debug.hex)
-  200h - 865h		(dist/default/debug\Proyecto1_PuC.X.debug.hex)
+  8h - FDh		(dist/default/debug\Proyecto1_PuC.X.debug.hex)
+  200h - 89Bh		(dist/default/debug\Proyecto1_PuC.X.debug.hex)
   C00h - C4Dh		(dist/default/debug\Proyecto1_PuC.X.debug.hex)
   400Eh - 4011h		(dist/default/debug\Proyecto1_PuC.X.debug.hex)
  Unused ranges:
   6h - 7h
-  F2h - 1FFh
-  866h - BFFh
+  FEh - 1FFh
+  89Ch - BFFh
   C4Eh - 400Dh
 
 ### Hex Memory Map ###
@@ -41,7 +41,7 @@
 000000C0 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 000000D0 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 000000E0 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
-000000F0 | H1 H1 -- -- -- -- -- -- -- -- -- -- -- -- -- --
+000000F0 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 -- --
 ----------------------------------------------------------
 00000200 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000210 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
@@ -145,7 +145,10 @@
 00000830 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000840 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000850 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
-00000860 | H1 H1 H1 H1 H1 H1 -- -- -- -- -- -- -- -- -- --
+00000860 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
+00000870 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
+00000880 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
+00000890 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 -- -- -- --
 ----------------------------------------------------------
 00000C00 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
 00000C10 | H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1 H1
